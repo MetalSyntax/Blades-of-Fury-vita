@@ -1,0 +1,52 @@
+# macOS metadata
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# iOS IPA / App original y extracción -- nunca commitear el juego (anti-DMCA)
+*.ipa
+*.zip
+*.app/
+Payload/
+game_app
+game_app/
+/bladesoffury_extract/
+rebase.bin
+
+# Assets del juego montados para pruebas
+ux0_data/
+assets/
+
+# Build artifacts
+/build/
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+*.elf
+*.velf
+*.self
+eboot.bin
+*.vpk
+compile_commands.json
+
+# Debugging en consola real
+/logs/
+*.log
+*.psp2dmp
+psp2core-*
+
+# Python
+__pycache__/
+*.pyc
+
+# Config local del toolkit (contiene IP de tu Vita)
+.psvita-toolkit.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.claude/
+cmake-build-*/

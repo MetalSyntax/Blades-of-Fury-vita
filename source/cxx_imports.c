@@ -1,0 +1,188 @@
+// Generado por tools/gen_cxx_imports.py: imports C++ del juego -> libstdc++ de VitaSDK (no editar).
+// Sin equivalente: ninguno
+#include "imports.h"
+
+extern char _ZN9__gnu_cxx18__exchange_and_addEPVii[];
+extern char _ZNKSbIwSt11char_traitsIwESaIwEE16find_last_not_ofEPKwjj[];
+extern char _ZNKSbIwSt11char_traitsIwESaIwEE17find_first_not_ofEPKwjj[];
+extern char _ZNKSbIwSt11char_traitsIwESaIwEE4findEPKwjj[];
+extern char _ZNKSbIwSt11char_traitsIwESaIwEE4findEwj[];
+extern char _ZNKSbIwSt11char_traitsIwESaIwEE5rfindEwj[];
+extern char _ZNKSbIwSt11char_traitsIwESaIwEE7compareEPKw[];
+extern char _ZNKSs16find_last_not_ofEPKcjj[];
+extern char _ZNKSs17find_first_not_ofEPKcjj[];
+extern char _ZNKSs4findEPKcjj[];
+extern char _ZNKSs7compareEPKc[];
+extern char _ZNKSt9basic_iosIcSt11char_traitsIcEE5widenEc[];
+extern char _ZNSbIwSt11char_traitsIwESaIwEE12_M_leak_hardEv[];
+extern char _ZNSbIwSt11char_traitsIwESaIwEE14_M_replace_auxEjjjw[];
+extern char _ZNSbIwSt11char_traitsIwESaIwEE4_Rep10_M_destroyERKS1_[];
+extern char _ZNSbIwSt11char_traitsIwESaIwEE4_Rep20_S_empty_rep_storageE[];
+extern char _ZNSbIwSt11char_traitsIwESaIwEE6appendEPKwj[];
+extern char _ZNSbIwSt11char_traitsIwESaIwEE6appendERKS2_[];
+extern char _ZNSbIwSt11char_traitsIwESaIwEE6appendEjw[];
+extern char _ZNSbIwSt11char_traitsIwESaIwEE6assignEPKwj[];
+extern char _ZNSbIwSt11char_traitsIwESaIwEE6assignERKS2_[];
+extern char _ZNSbIwSt11char_traitsIwESaIwEE7replaceEjjPKwj[];
+extern char _ZNSbIwSt11char_traitsIwESaIwEE7reserveEj[];
+extern char _ZNSbIwSt11char_traitsIwESaIwEE9_M_mutateEjjj[];
+extern char _ZNSbIwSt11char_traitsIwESaIwEEC1EPKwRKS1_[];
+extern char _ZNSbIwSt11char_traitsIwESaIwEEC1ERKS2_[];
+extern char _ZNSbIwSt11char_traitsIwESaIwEEC1ERKS2_jj[];
+extern char _ZNSolsEi[];
+extern char _ZNSolsEl[];
+extern char _ZNSolsEm[];
+extern char _ZNSs12_M_leak_hardEv[];
+extern char _ZNSs4_Rep10_M_destroyERKSaIcE[];
+extern char _ZNSs4_Rep11_S_terminalE[];
+extern char _ZNSs4_Rep20_S_empty_rep_storageE[];
+extern char _ZNSs4_Rep9_S_createEjjRKSaIcE[];
+extern char _ZNSs6appendEPKcj[];
+extern char _ZNSs6appendERKSs[];
+extern char _ZNSs6appendEjc[];
+extern char _ZNSs6assignEPKcj[];
+extern char _ZNSs6assignERKSs[];
+extern char _ZNSs6insertEjPKcj[];
+extern char _ZNSs6resizeEjc[];
+extern char _ZNSs7reserveEj[];
+extern char _ZNSs9_M_mutateEjjj[];
+extern char _ZNSsC1EPKcRKSaIcE[];
+extern char _ZNSsC1EPKcjRKSaIcE[];
+extern char _ZNSsC1ERKSs[];
+extern char _ZNSsC1ERKSsjj[];
+extern char _ZNSsD1Ev[];
+extern char _ZNSt13basic_ostreamIwSt11char_traitsIwEElsEi[];
+extern char _ZNSt15_List_node_base4hookEPS_[];
+extern char _ZNSt15_List_node_base6unhookEv[];
+extern char _ZNSt15_List_node_base8transferEPS_S0_[];
+extern char _ZNSt19basic_ostringstreamIcSt11char_traitsIcESaIcEEC1ESt13_Ios_Openmode[];
+extern char _ZNSt6localeC1Ev[];
+extern char _ZNSt6localeD1Ev[];
+extern char _ZNSt8ios_base4InitC1Ev[];
+extern char _ZNSt8ios_base4InitD1Ev[];
+extern char _ZNSt8ios_baseC2Ev[];
+extern char _ZNSt8ios_baseD2Ev[];
+extern char _ZNSt9basic_iosIcSt11char_traitsIcEE4initEPSt15basic_streambufIcS1_E[];
+extern char _ZNSt9basic_iosIwSt11char_traitsIwEE4initEPSt15basic_streambufIwS1_E[];
+extern char _ZNSt9basic_iosIwSt11char_traitsIwEE5clearESt12_Ios_Iostate[];
+extern char _ZSt17__throw_bad_allocv[];
+extern char _ZSt18_Rb_tree_decrementPSt18_Rb_tree_node_base[];
+extern char _ZSt18_Rb_tree_incrementPKSt18_Rb_tree_node_base[];
+extern char _ZSt18_Rb_tree_incrementPSt18_Rb_tree_node_base[];
+extern char _ZSt19__throw_logic_errorPKc[];
+extern char _ZSt20__throw_length_errorPKc[];
+extern char _ZSt20__throw_out_of_rangePKc[];
+extern char _ZSt28_Rb_tree_rebalance_for_erasePSt18_Rb_tree_node_baseRS_[];
+extern char _ZSt29_Rb_tree_insert_and_rebalancebPSt18_Rb_tree_node_baseS0_RS_[];
+extern char _ZStrsIcSt11char_traitsIcESaIcEERSt13basic_istreamIT_T0_ES7_RSbIS4_S5_T1_E[];
+extern char _ZStrsIwSt11char_traitsIwESaIwEERSt13basic_istreamIT_T0_ES7_RSbIS4_S5_T1_E[];
+extern char _ZTTSt18basic_stringstreamIcSt11char_traitsIcESaIcEE[];
+extern char _ZTTSt18basic_stringstreamIwSt11char_traitsIwESaIwEE[];
+extern char _ZTTSt19basic_ostringstreamIcSt11char_traitsIcESaIcEE[];
+extern char _ZTVSt15basic_streambufIcSt11char_traitsIcEE[];
+extern char _ZTVSt15basic_streambufIwSt11char_traitsIwEE[];
+extern char _ZTVSt15basic_stringbufIcSt11char_traitsIcESaIcEE[];
+extern char _ZTVSt15basic_stringbufIwSt11char_traitsIwESaIwEE[];
+extern char _ZTVSt18basic_stringstreamIcSt11char_traitsIcESaIcEE[];
+extern char _ZTVSt18basic_stringstreamIwSt11char_traitsIwESaIwEE[];
+extern char _ZTVSt19basic_ostringstreamIcSt11char_traitsIcESaIcEE[];
+extern char _ZTVSt9basic_iosIcSt11char_traitsIcEE[];
+extern char _ZTVSt9basic_iosIwSt11char_traitsIwEE[];
+extern char _ZdaPv[];
+extern char _ZdlPv[];
+extern char _Znaj[];
+extern char _Znwj[];
+
+const import_entry cxx_imports[] = {
+    {"__ZN9__gnu_cxx18__exchange_and_addEPVii", (uintptr_t)_ZN9__gnu_cxx18__exchange_and_addEPVii, 0},
+    {"__ZNKSbIwSt11char_traitsIwESaIwEE16find_last_not_ofEPKwmm", (uintptr_t)_ZNKSbIwSt11char_traitsIwESaIwEE16find_last_not_ofEPKwjj, 0},
+    {"__ZNKSbIwSt11char_traitsIwESaIwEE17find_first_not_ofEPKwmm", (uintptr_t)_ZNKSbIwSt11char_traitsIwESaIwEE17find_first_not_ofEPKwjj, 0},
+    {"__ZNKSbIwSt11char_traitsIwESaIwEE4findEPKwmm", (uintptr_t)_ZNKSbIwSt11char_traitsIwESaIwEE4findEPKwjj, 0},
+    {"__ZNKSbIwSt11char_traitsIwESaIwEE4findEwm", (uintptr_t)_ZNKSbIwSt11char_traitsIwESaIwEE4findEwj, 0},
+    {"__ZNKSbIwSt11char_traitsIwESaIwEE5rfindEwm", (uintptr_t)_ZNKSbIwSt11char_traitsIwESaIwEE5rfindEwj, 0},
+    {"__ZNKSbIwSt11char_traitsIwESaIwEE7compareEPKw", (uintptr_t)_ZNKSbIwSt11char_traitsIwESaIwEE7compareEPKw, 0},
+    {"__ZNKSs16find_last_not_ofEPKcmm", (uintptr_t)_ZNKSs16find_last_not_ofEPKcjj, 0},
+    {"__ZNKSs17find_first_not_ofEPKcmm", (uintptr_t)_ZNKSs17find_first_not_ofEPKcjj, 0},
+    {"__ZNKSs4findEPKcmm", (uintptr_t)_ZNKSs4findEPKcjj, 0},
+    {"__ZNKSs7compareEPKc", (uintptr_t)_ZNKSs7compareEPKc, 0},
+    {"__ZNKSt9basic_iosIcSt11char_traitsIcEE5widenEc", (uintptr_t)_ZNKSt9basic_iosIcSt11char_traitsIcEE5widenEc, 0},
+    {"__ZNSbIwSt11char_traitsIwESaIwEE12_M_leak_hardEv", (uintptr_t)_ZNSbIwSt11char_traitsIwESaIwEE12_M_leak_hardEv, 0},
+    {"__ZNSbIwSt11char_traitsIwESaIwEE14_M_replace_auxEmmmw", (uintptr_t)_ZNSbIwSt11char_traitsIwESaIwEE14_M_replace_auxEjjjw, 0},
+    {"__ZNSbIwSt11char_traitsIwESaIwEE4_Rep10_M_destroyERKS1_", (uintptr_t)_ZNSbIwSt11char_traitsIwESaIwEE4_Rep10_M_destroyERKS1_, 0},
+    {"__ZNSbIwSt11char_traitsIwESaIwEE4_Rep20_S_empty_rep_storageE", (uintptr_t)_ZNSbIwSt11char_traitsIwESaIwEE4_Rep20_S_empty_rep_storageE, 1},
+    {"__ZNSbIwSt11char_traitsIwESaIwEE6appendEPKwm", (uintptr_t)_ZNSbIwSt11char_traitsIwESaIwEE6appendEPKwj, 0},
+    {"__ZNSbIwSt11char_traitsIwESaIwEE6appendERKS2_", (uintptr_t)_ZNSbIwSt11char_traitsIwESaIwEE6appendERKS2_, 0},
+    {"__ZNSbIwSt11char_traitsIwESaIwEE6appendEmw", (uintptr_t)_ZNSbIwSt11char_traitsIwESaIwEE6appendEjw, 0},
+    {"__ZNSbIwSt11char_traitsIwESaIwEE6assignEPKwm", (uintptr_t)_ZNSbIwSt11char_traitsIwESaIwEE6assignEPKwj, 0},
+    {"__ZNSbIwSt11char_traitsIwESaIwEE6assignERKS2_", (uintptr_t)_ZNSbIwSt11char_traitsIwESaIwEE6assignERKS2_, 0},
+    {"__ZNSbIwSt11char_traitsIwESaIwEE7replaceEmmPKwm", (uintptr_t)_ZNSbIwSt11char_traitsIwESaIwEE7replaceEjjPKwj, 0},
+    {"__ZNSbIwSt11char_traitsIwESaIwEE7reserveEm", (uintptr_t)_ZNSbIwSt11char_traitsIwESaIwEE7reserveEj, 0},
+    {"__ZNSbIwSt11char_traitsIwESaIwEE9_M_mutateEmmm", (uintptr_t)_ZNSbIwSt11char_traitsIwESaIwEE9_M_mutateEjjj, 0},
+    {"__ZNSbIwSt11char_traitsIwESaIwEEC1EPKwRKS1_", (uintptr_t)_ZNSbIwSt11char_traitsIwESaIwEEC1EPKwRKS1_, 0},
+    {"__ZNSbIwSt11char_traitsIwESaIwEEC1ERKS2_", (uintptr_t)_ZNSbIwSt11char_traitsIwESaIwEEC1ERKS2_, 0},
+    {"__ZNSbIwSt11char_traitsIwESaIwEEC1ERKS2_mm", (uintptr_t)_ZNSbIwSt11char_traitsIwESaIwEEC1ERKS2_jj, 0},
+    {"__ZNSolsEi", (uintptr_t)_ZNSolsEi, 0},
+    {"__ZNSolsEl", (uintptr_t)_ZNSolsEl, 0},
+    {"__ZNSolsEm", (uintptr_t)_ZNSolsEm, 0},
+    {"__ZNSs12_M_leak_hardEv", (uintptr_t)_ZNSs12_M_leak_hardEv, 0},
+    {"__ZNSs4_Rep10_M_destroyERKSaIcE", (uintptr_t)_ZNSs4_Rep10_M_destroyERKSaIcE, 0},
+    {"__ZNSs4_Rep11_S_terminalE", (uintptr_t)_ZNSs4_Rep11_S_terminalE, 1},
+    {"__ZNSs4_Rep20_S_empty_rep_storageE", (uintptr_t)_ZNSs4_Rep20_S_empty_rep_storageE, 1},
+    {"__ZNSs4_Rep9_S_createEmmRKSaIcE", (uintptr_t)_ZNSs4_Rep9_S_createEjjRKSaIcE, 0},
+    {"__ZNSs6appendEPKcm", (uintptr_t)_ZNSs6appendEPKcj, 0},
+    {"__ZNSs6appendERKSs", (uintptr_t)_ZNSs6appendERKSs, 0},
+    {"__ZNSs6appendEmc", (uintptr_t)_ZNSs6appendEjc, 0},
+    {"__ZNSs6assignEPKcm", (uintptr_t)_ZNSs6assignEPKcj, 0},
+    {"__ZNSs6assignERKSs", (uintptr_t)_ZNSs6assignERKSs, 0},
+    {"__ZNSs6insertEmPKcm", (uintptr_t)_ZNSs6insertEjPKcj, 0},
+    {"__ZNSs6resizeEmc", (uintptr_t)_ZNSs6resizeEjc, 0},
+    {"__ZNSs7reserveEm", (uintptr_t)_ZNSs7reserveEj, 0},
+    {"__ZNSs9_M_mutateEmmm", (uintptr_t)_ZNSs9_M_mutateEjjj, 0},
+    {"__ZNSsC1EPKcRKSaIcE", (uintptr_t)_ZNSsC1EPKcRKSaIcE, 0},
+    {"__ZNSsC1EPKcmRKSaIcE", (uintptr_t)_ZNSsC1EPKcjRKSaIcE, 0},
+    {"__ZNSsC1ERKSs", (uintptr_t)_ZNSsC1ERKSs, 0},
+    {"__ZNSsC1ERKSsmm", (uintptr_t)_ZNSsC1ERKSsjj, 0},
+    {"__ZNSsD1Ev", (uintptr_t)_ZNSsD1Ev, 0},
+    {"__ZNSt13basic_ostreamIwSt11char_traitsIwEElsEi", (uintptr_t)_ZNSt13basic_ostreamIwSt11char_traitsIwEElsEi, 0},
+    {"__ZNSt15_List_node_base4hookEPS_", (uintptr_t)_ZNSt15_List_node_base4hookEPS_, 0},
+    {"__ZNSt15_List_node_base6unhookEv", (uintptr_t)_ZNSt15_List_node_base6unhookEv, 0},
+    {"__ZNSt15_List_node_base8transferEPS_S0_", (uintptr_t)_ZNSt15_List_node_base8transferEPS_S0_, 0},
+    {"__ZNSt19basic_ostringstreamIcSt11char_traitsIcESaIcEEC1ESt13_Ios_Openmode", (uintptr_t)_ZNSt19basic_ostringstreamIcSt11char_traitsIcESaIcEEC1ESt13_Ios_Openmode, 0},
+    {"__ZNSt6localeC1Ev", (uintptr_t)_ZNSt6localeC1Ev, 0},
+    {"__ZNSt6localeD1Ev", (uintptr_t)_ZNSt6localeD1Ev, 0},
+    {"__ZNSt8ios_base4InitC1Ev", (uintptr_t)_ZNSt8ios_base4InitC1Ev, 0},
+    {"__ZNSt8ios_base4InitD1Ev", (uintptr_t)_ZNSt8ios_base4InitD1Ev, 0},
+    {"__ZNSt8ios_baseC2Ev", (uintptr_t)_ZNSt8ios_baseC2Ev, 0},
+    {"__ZNSt8ios_baseD2Ev", (uintptr_t)_ZNSt8ios_baseD2Ev, 0},
+    {"__ZNSt9basic_iosIcSt11char_traitsIcEE4initEPSt15basic_streambufIcS1_E", (uintptr_t)_ZNSt9basic_iosIcSt11char_traitsIcEE4initEPSt15basic_streambufIcS1_E, 0},
+    {"__ZNSt9basic_iosIwSt11char_traitsIwEE4initEPSt15basic_streambufIwS1_E", (uintptr_t)_ZNSt9basic_iosIwSt11char_traitsIwEE4initEPSt15basic_streambufIwS1_E, 0},
+    {"__ZNSt9basic_iosIwSt11char_traitsIwEE5clearESt12_Ios_Iostate", (uintptr_t)_ZNSt9basic_iosIwSt11char_traitsIwEE5clearESt12_Ios_Iostate, 0},
+    {"__ZSt17__throw_bad_allocv", (uintptr_t)_ZSt17__throw_bad_allocv, 0},
+    {"__ZSt18_Rb_tree_decrementPSt18_Rb_tree_node_base", (uintptr_t)_ZSt18_Rb_tree_decrementPSt18_Rb_tree_node_base, 0},
+    {"__ZSt18_Rb_tree_incrementPKSt18_Rb_tree_node_base", (uintptr_t)_ZSt18_Rb_tree_incrementPKSt18_Rb_tree_node_base, 0},
+    {"__ZSt18_Rb_tree_incrementPSt18_Rb_tree_node_base", (uintptr_t)_ZSt18_Rb_tree_incrementPSt18_Rb_tree_node_base, 0},
+    {"__ZSt19__throw_logic_errorPKc", (uintptr_t)_ZSt19__throw_logic_errorPKc, 0},
+    {"__ZSt20__throw_length_errorPKc", (uintptr_t)_ZSt20__throw_length_errorPKc, 0},
+    {"__ZSt20__throw_out_of_rangePKc", (uintptr_t)_ZSt20__throw_out_of_rangePKc, 0},
+    {"__ZSt28_Rb_tree_rebalance_for_erasePSt18_Rb_tree_node_baseRS_", (uintptr_t)_ZSt28_Rb_tree_rebalance_for_erasePSt18_Rb_tree_node_baseRS_, 0},
+    {"__ZSt29_Rb_tree_insert_and_rebalancebPSt18_Rb_tree_node_baseS0_RS_", (uintptr_t)_ZSt29_Rb_tree_insert_and_rebalancebPSt18_Rb_tree_node_baseS0_RS_, 0},
+    {"__ZStrsIcSt11char_traitsIcESaIcEERSt13basic_istreamIT_T0_ES7_RSbIS4_S5_T1_E", (uintptr_t)_ZStrsIcSt11char_traitsIcESaIcEERSt13basic_istreamIT_T0_ES7_RSbIS4_S5_T1_E, 0},
+    {"__ZStrsIwSt11char_traitsIwESaIwEERSt13basic_istreamIT_T0_ES7_RSbIS4_S5_T1_E", (uintptr_t)_ZStrsIwSt11char_traitsIwESaIwEERSt13basic_istreamIT_T0_ES7_RSbIS4_S5_T1_E, 0},
+    {"__ZTTSt18basic_stringstreamIcSt11char_traitsIcESaIcEE", (uintptr_t)_ZTTSt18basic_stringstreamIcSt11char_traitsIcESaIcEE, 1},
+    {"__ZTTSt18basic_stringstreamIwSt11char_traitsIwESaIwEE", (uintptr_t)_ZTTSt18basic_stringstreamIwSt11char_traitsIwESaIwEE, 1},
+    {"__ZTTSt19basic_ostringstreamIcSt11char_traitsIcESaIcEE", (uintptr_t)_ZTTSt19basic_ostringstreamIcSt11char_traitsIcESaIcEE, 1},
+    {"__ZTVSt15basic_streambufIcSt11char_traitsIcEE", (uintptr_t)_ZTVSt15basic_streambufIcSt11char_traitsIcEE, 1},
+    {"__ZTVSt15basic_streambufIwSt11char_traitsIwEE", (uintptr_t)_ZTVSt15basic_streambufIwSt11char_traitsIwEE, 1},
+    {"__ZTVSt15basic_stringbufIcSt11char_traitsIcESaIcEE", (uintptr_t)_ZTVSt15basic_stringbufIcSt11char_traitsIcESaIcEE, 1},
+    {"__ZTVSt15basic_stringbufIwSt11char_traitsIwESaIwEE", (uintptr_t)_ZTVSt15basic_stringbufIwSt11char_traitsIwESaIwEE, 1},
+    {"__ZTVSt18basic_stringstreamIcSt11char_traitsIcESaIcEE", (uintptr_t)_ZTVSt18basic_stringstreamIcSt11char_traitsIcESaIcEE, 1},
+    {"__ZTVSt18basic_stringstreamIwSt11char_traitsIwESaIwEE", (uintptr_t)_ZTVSt18basic_stringstreamIwSt11char_traitsIwESaIwEE, 1},
+    {"__ZTVSt19basic_ostringstreamIcSt11char_traitsIcESaIcEE", (uintptr_t)_ZTVSt19basic_ostringstreamIcSt11char_traitsIcESaIcEE, 1},
+    {"__ZTVSt9basic_iosIcSt11char_traitsIcEE", (uintptr_t)_ZTVSt9basic_iosIcSt11char_traitsIcEE, 1},
+    {"__ZTVSt9basic_iosIwSt11char_traitsIwEE", (uintptr_t)_ZTVSt9basic_iosIwSt11char_traitsIwEE, 1},
+    {"__ZdaPv", (uintptr_t)_ZdaPv, 0},
+    {"__ZdlPv", (uintptr_t)_ZdlPv, 0},
+    {"__Znam", (uintptr_t)_Znaj, 0},
+    {"__Znwm", (uintptr_t)_Znwj, 0},
+};
+const int cxx_imports_count = sizeof(cxx_imports) / sizeof(cxx_imports[0]);
