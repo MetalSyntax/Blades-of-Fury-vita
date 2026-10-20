@@ -191,6 +191,25 @@ El loader de Zombie Infection (mismo motor iOS 3 de Gameloft, ya en gameplay) se
   3. Se actualizó la suite de regresión `tools/test_macho_prep.py` agregando el caso de la corrida 13 (9/9 casos pasan OK).
   4. Se regeneró `ux0_data/bladesoffury/rebase.bin`.
 
+## 2026-10-19 — Corrida 14: Implementación completa de Sonido y Música (SFX + BGM en OpenAL)
+
+- Fix de corrida 13 validado: In-game 3D sin crashes de trails/combate. Jugabilidad fluida.
+- **Diagnóstico del subsistema de audio:**
+  - El motor de sonido de Gameloft (`SoundEngineEffect`) usa **OpenAL** para la reproducción de efectos de sonido y voces (`sfx_*.wav`, `vfx_*.wav`), pero delegaba la lectura de archivos de disco a las APIs de CoreAudio `AudioFileOpenURL`, `AudioFileGetProperty`, `AudioFileReadBytes` y `AudioFileClose`.
+  - Dichas APIs estaban stubbeadas retornando `-1`, lo que impedía que `SoundEngineEffect::AttachFilesToSource()` leyera los archivos de audio y cargara los datos PCM a los búferes de OpenAL.
+  - La música de fondo (`SoundEngine_LoadBackgroundMusicTrack`) cargaba archivos `.m4a` (AAC) mediante `AudioQueue`.
+- **Implementación de Sonido y Música:**
+  1. **Lector nativo WAV en [source/coreaudio.c](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/Blades-of-Fury-vita/source/coreaudio.c):**
+     - Se implementó un parser de archivos RIFF/WAVE (`wav_open`) que analiza cabeceras `fmt ` y localiza el chunk `data`, extrayendo sample rate, canales y profundidad de bits.
+     - Se implementaron las funciones reales `AudioFileOpenURL`, `AudioFileGetProperty` (respondiendo a `kAudioFilePropertyDataFormat` y `kAudioFilePropertyAudioDataByteCount`), `AudioFileGetPropertyInfo`, `AudioFileReadBytes` y `AudioFileClose`.
+     - Ahora `SoundEngineEffect` carga exitosamente todos los archivos `.wav` de efectos y voces hacia los búferes de OpenAL vía `alBufferData`.
+  2. **Reproductor BGM en OpenAL ([source/coreaudio.c](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/Blades-of-Fury-vita/source/coreaudio.c), [source/coreaudio.h](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/Blades-of-Fury-vita/source/coreaudio.h), [source/patch.c](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/Blades-of-Fury-vita/source/patch.c)):**
+     - Se implementó un subsistema BGM dedicado (`sound_bgm_*`) con fuente y búfer OpenAL independientes.
+     - Se enrutaron los hooks `SoundEngine_LoadBackgroundMusicTrack`, `SoundEngine_StartBackgroundMusic`, `SoundEngine_StopBackgroundMusic`, `SoundEngine_UnloadBackgroundMusicTrack` y `SoundEngine_SetBackgroundMusicVolume` directamente a OpenAL.
+     - Se convirtieron las 26 pistas de música `.m4a` a `.wav` (32 kHz estéreo PCM 16-bit) en `ux0_data/bladesoffury/BladesOfFury.app/` y se automatizó la conversión en `tools/stage_data.sh`.
+- Build PC: OK (`build/eboot.bin` y `build/bladesoffury.vpk`).
+
+
 
 
 

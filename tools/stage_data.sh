@@ -76,6 +76,19 @@ rsync -a --delete \
   --exclude 'CodeResources' \
   "$APP/" "$OUT/$APP_DIR_NAME/"
 
+# Convertir pistas de audio m4a a wav para reproducción directa con OpenAL
+if command -v ffmpeg >/dev/null 2>&1; then
+    echo "[*] Verificando pistas de música (.m4a -> .wav)..."
+    for m in "$OUT/$APP_DIR_NAME"/m_*.m4a; do
+        if [ -f "$m" ]; then
+            w="${m%.m4a}.wav"
+            if [ ! -f "$w" ]; then
+                ffmpeg -y -v error -i "$m" -ar 32000 -ac 2 "$w"
+            fi
+        fi
+    done
+fi
+
 # Generar rebase.bin y reporte de imports
 echo "[*] Analizando Mach-O y generando rebase.bin..."
 python3 -I tools/macho_prep.py "$OUT/$APP_DIR_NAME/$EXEC_NAME" "$OUT/rebase.bin" --report docs/macho_report.txt

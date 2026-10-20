@@ -9,6 +9,7 @@
 #include <psp2/apputil.h>
 #include <psp2/system_param.h>
 
+#include "coreaudio.h"
 #include "imports.h"
 #include "input.h"
 #include "log.h"
@@ -34,25 +35,23 @@ static void hook_GetDeviceLanguage(char *out_buf) {
 }
 
 static int hook_SoundEngine_LoadBackgroundMusicTrack(const char *path, int loop, int crossfade) {
-    l_info("_SoundEngine_LoadBackgroundMusicTrack('%s') -> stubbed (no AudioQueue)", path ? path : "null");
-    return -1;
+    return sound_bgm_load(path, loop, crossfade);
 }
 
 static int hook_SoundEngine_StartBackgroundMusic(int loop) {
-    l_info("_SoundEngine_StartBackgroundMusic -> stubbed");
-    return 0;
+    return sound_bgm_start(loop);
 }
 
 static int hook_SoundEngine_StopBackgroundMusic(int all) {
-    return 0;
+    return sound_bgm_stop(all);
 }
 
 static int hook_SoundEngine_UnloadBackgroundMusicTrack(void) {
-    return 0;
+    return sound_bgm_unload();
 }
 
 static int hook_SoundEngine_SetBackgroundMusicVolume(float vol) {
-    return 0;
+    return sound_bgm_set_volume(vol);
 }
 
 // VFPv2 vector mode hooks:

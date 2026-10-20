@@ -13,10 +13,14 @@
 #include <psp2/kernel/threadmgr.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
+#include "coreaudio.h"
+#include "darwin.h"
 #include "imports.h"
 #include "log.h"
 #include "macho.h"
+#include "objc_rt.h"
 
 #define kAudioUnitProperty_StreamFormat 8
 #define kAudioUnitProperty_SetRenderCallback 23
@@ -185,6 +189,311 @@ static int as_GetProperty(uint32_t id, uint32_t *size, void *data) {
     return 0;
 }
 
+// ---------------------------------------------------------------- AudioFile (WAV parser for SFX)
+
+typedef struct {
+    uint32_t sample_rate;
+    uint32_t channels;
+    uint32_t bits_per_sample;
+    uint32_t data_size;
+    uint32_t data_offset;
+    FILE *fp;
+} wav_file_t;
+
+static int wav_open(const char *path, wav_file_t *w) {
+    if (!path || !w)
+        return -1;
+    memset(w, 0, sizeof(*w));
+
+    FILE *f = fopen(path, "rb");
+    if (!f)
+        return -1;
+
+    char id[4];
+    uint32_t size;
+    if (fread(id, 1, 4, f) != 4 || memcmp(id, "RIFF", 4) != 0) {
+        fclose(f);
+        return -1;
+    }
+    fseek(f, 4, SEEK_CUR); // skip RIFF chunk size
+    if (fread(id, 1, 4, f) != 4 || memcmp(id, "WAVE", 4) != 0) {
+        fclose(f);
+        return -1;
+    }
+
+    int found_fmt = 0, found_data = 0;
+    while (!feof(f)) {
+        if (fread(id, 1, 4, f) != 4 || fread(&size, 4, 1, f) != 1)
+            break;
+        long chunk_start = ftell(f);
+        if (memcmp(id, "fmt ", 4) == 0 && size >= 16) {
+            uint16_t tag = 0, ch = 0, bits = 0;
+            uint32_t rate = 0;
+            fread(&tag, 2, 1, f);
+            fread(&ch, 2, 1, f);
+            fread(&rate, 4, 1, f);
+            fseek(f, 6, SEEK_CUR); // skip nAvgBytesPerSec (4), nBlockAlign (2)
+            fread(&bits, 2, 1, f);
+            w->channels = ch;
+            w->sample_rate = rate;
+            w->bits_per_sample = bits;
+            found_fmt = 1;
+        } else if (memcmp(id, "data", 4) == 0) {
+            w->data_offset = (uint32_t)chunk_start;
+            w->data_size = size;
+            found_data = 1;
+            break;
+        }
+        fseek(f, chunk_start + size, SEEK_SET);
+    }
+
+    if (!found_fmt || !found_data) {
+        fclose(f);
+        return -1;
+    }
+
+    w->fp = f;
+    return 0;
+}
+
+typedef struct {
+    wav_file_t wav;
+    asbd fmt;
+} audio_file_ctx;
+
+static const char *get_path_from_url(void *url) {
+    if (!url)
+        return NULL;
+    const char *p = (const char *)url;
+    if (p[0] == '/' || !strncmp(p, "ux0:", 4) || !strncmp(p, "app0:", 5))
+        return p;
+    return ns_cstr((id)url);
+}
+
+static int my_AudioFileOpenURL(void *url, int permissions, int hint, void **out) {
+    if (!url || !out)
+        return -1;
+    const char *raw_path = get_path_from_url(url);
+    if (!raw_path || !raw_path[0])
+        return -1;
+
+    char rpath[256];
+    darwin_path(raw_path, rpath, sizeof(rpath));
+
+    audio_file_ctx *af = calloc(1, sizeof(*af));
+    if (!af)
+        return -1;
+
+    if (wav_open(rpath, &af->wav) < 0) {
+        char alt[256];
+        snprintf(alt, sizeof(alt), "%s", rpath);
+        char *dot = strrchr(alt, '.');
+        if (dot && !strcasecmp(dot, ".m4a")) {
+            strcpy(dot, ".wav");
+            if (wav_open(alt, &af->wav) < 0) {
+                free(af);
+                return -1;
+            }
+        } else {
+            free(af);
+            return -1;
+        }
+    }
+
+    af->fmt.mSampleRate = (double)af->wav.sample_rate;
+    af->fmt.mFormatID = FOURCC('l', 'p', 'c', 'm');
+    af->fmt.mFormatFlags = 0xC; // signed int, native endian
+    af->fmt.mBytesPerPacket = af->wav.channels * (af->wav.bits_per_sample / 8);
+    af->fmt.mFramesPerPacket = 1;
+    af->fmt.mBytesPerFrame = af->fmt.mBytesPerPacket;
+    af->fmt.mChannelsPerFrame = af->wav.channels;
+    af->fmt.mBitsPerChannel = af->wav.bits_per_sample;
+    af->fmt.mReserved = 0;
+
+    *out = af;
+    return 0; // noErr
+}
+
+static int my_AudioFileClose(void *af_ptr) {
+    if (!af_ptr)
+        return -1;
+    audio_file_ctx *af = (audio_file_ctx *)af_ptr;
+    if (af->wav.fp)
+        fclose(af->wav.fp);
+    free(af);
+    return 0;
+}
+
+static int my_AudioFileGetProperty(void *af_ptr, uint32_t prop, uint32_t *ioSize, void *outData) {
+    if (!af_ptr || !outData || !ioSize)
+        return -1;
+    audio_file_ctx *af = (audio_file_ctx *)af_ptr;
+
+    if (prop == FOURCC('d', 'f', 'm', 't')) { // kAudioFilePropertyDataFormat
+        uint32_t sz = sizeof(asbd);
+        if (*ioSize < sz)
+            sz = *ioSize;
+        memcpy(outData, &af->fmt, sz);
+        *ioSize = sz;
+        return 0;
+    } else if (prop == FOURCC('b', 'c', 'n', 't')) { // kAudioFilePropertyAudioDataByteCount
+        uint64_t cnt = (uint64_t)af->wav.data_size;
+        uint32_t sz = sizeof(uint64_t);
+        if (*ioSize < sz)
+            sz = *ioSize;
+        memcpy(outData, &cnt, sz);
+        *ioSize = sz;
+        return 0;
+    }
+    return -1;
+}
+
+static int my_AudioFileGetPropertyInfo(void *af_ptr, uint32_t prop, uint32_t *outSize, uint32_t *outWritable) {
+    if (!af_ptr)
+        return -1;
+    if (outWritable)
+        *outWritable = 0;
+    if (prop == FOURCC('d', 'f', 'm', 't')) {
+        if (outSize)
+            *outSize = sizeof(asbd);
+        return 0;
+    } else if (prop == FOURCC('b', 'c', 'n', 't')) {
+        if (outSize)
+            *outSize = sizeof(uint64_t);
+        return 0;
+    }
+    return -1;
+}
+
+static int my_AudioFileReadBytes(void *af_ptr, int useCache, int64_t startingByte, uint32_t *ioNumBytes, void *outBuf) {
+    if (!af_ptr || !outBuf || !ioNumBytes)
+        return -1;
+    audio_file_ctx *af = (audio_file_ctx *)af_ptr;
+    if (!af->wav.fp)
+        return -1;
+
+    fseek(af->wav.fp, af->wav.data_offset + (long)startingByte, SEEK_SET);
+    size_t rd = fread(outBuf, 1, *ioNumBytes, af->wav.fp);
+    *ioNumBytes = (uint32_t)rd;
+    return 0;
+}
+
+// ---------------------------------------------------------------- BGM (OpenAL background music stream)
+
+static ALuint bgm_source = 0;
+static ALuint bgm_buffer = 0;
+static float s_bgm_vol = 1.0f;
+static int s_bgm_loop = 1;
+
+int sound_bgm_load(const char *path, int loop, int crossfade) {
+    if (!path || !path[0])
+        return -1;
+
+    s_bgm_loop = loop;
+
+    char rpath[256];
+    darwin_path(path, rpath, sizeof(rpath));
+
+    char wav_path[256];
+    snprintf(wav_path, sizeof(wav_path), "%s", rpath);
+    char *dot = strrchr(wav_path, '.');
+    if (dot && !strcasecmp(dot, ".m4a")) {
+        strcpy(dot, ".wav");
+    }
+
+    wav_file_t w;
+    const char *opened_path = wav_path;
+    if (wav_open(wav_path, &w) < 0) {
+        if (wav_open(rpath, &w) < 0) {
+            l_warn("BGM: could not open '%s' (nor '%s')", wav_path, rpath);
+            return -1;
+        }
+        opened_path = rpath;
+    }
+
+    void *pcm = malloc(w.data_size);
+    if (!pcm) {
+        fclose(w.fp);
+        return -1;
+    }
+
+    fseek(w.fp, w.data_offset, SEEK_SET);
+    fread(pcm, 1, w.data_size, w.fp);
+    fclose(w.fp);
+
+    ALenum fmt = AL_FORMAT_MONO16;
+    if (w.channels == 2 && w.bits_per_sample == 16)
+        fmt = AL_FORMAT_STEREO16;
+    else if (w.channels == 1 && w.bits_per_sample == 16)
+        fmt = AL_FORMAT_MONO16;
+    else if (w.channels == 2 && w.bits_per_sample == 8)
+        fmt = AL_FORMAT_STEREO8;
+    else if (w.channels == 1 && w.bits_per_sample == 8)
+        fmt = AL_FORMAT_MONO8;
+
+    if (!bgm_source) {
+        alGenSources(1, &bgm_source);
+    } else {
+        alSourceStop(bgm_source);
+        alSourcei(bgm_source, AL_BUFFER, 0);
+    }
+
+    if (bgm_buffer) {
+        alDeleteBuffers(1, &bgm_buffer);
+        bgm_buffer = 0;
+    }
+
+    alGenBuffers(1, &bgm_buffer);
+    alBufferData(bgm_buffer, fmt, pcm, w.data_size, w.sample_rate);
+    free(pcm);
+
+    alSourcei(bgm_source, AL_BUFFER, bgm_buffer);
+    alSourcei(bgm_source, AL_LOOPING, loop ? AL_TRUE : AL_FALSE);
+    alSourcef(bgm_source, AL_GAIN, s_bgm_vol);
+
+    l_info("BGM loaded '%s' (%u Hz, ch=%u, sz=%u B) -> buffer %u",
+           opened_path, w.sample_rate, w.channels, w.data_size, bgm_buffer);
+    return 0;
+}
+
+int sound_bgm_start(int loop) {
+    if (bgm_source) {
+        alSourcei(bgm_source, AL_LOOPING, loop ? AL_TRUE : AL_FALSE);
+        alSourcePlay(bgm_source);
+        l_info("BGM started (loop=%d)", loop);
+    }
+    return 0;
+}
+
+int sound_bgm_stop(int all) {
+    if (bgm_source) {
+        alSourceStop(bgm_source);
+        l_info("BGM stopped");
+    }
+    return 0;
+}
+
+int sound_bgm_unload(void) {
+    if (bgm_source) {
+        alSourceStop(bgm_source);
+        alSourcei(bgm_source, AL_BUFFER, 0);
+    }
+    if (bgm_buffer) {
+        alDeleteBuffers(1, &bgm_buffer);
+        bgm_buffer = 0;
+    }
+    l_info("BGM unloaded");
+    return 0;
+}
+
+int sound_bgm_set_volume(float vol) {
+    s_bgm_vol = vol;
+    if (bgm_source) {
+        alSourcef(bgm_source, AL_GAIN, vol);
+    }
+    return 0;
+}
+
 // ---------------------------------------------------------------- OpenAL (openal-soft from VitaSDK)
 
 // Apple extension: buffer data stays owned by the app. openal-soft copies it, which is equivalent
@@ -224,9 +533,11 @@ const import_entry coreaudio_imports[] = {
     F(AudioSessionGetProperty, as_GetProperty), F(AudioSessionAddPropertyListener, ok),
     // imported via __nl_symbol_ptr (function pointer): requires code stub, not data
     F(AudioSessionRemovePropertyListenerWithUserData, ok),
-    // AudioQueue & AudioFile stubs: must return failure (-1) instead of 0 so caller doesn't dereference unallocated buffers
-    F(AudioFileOpenURL, audio_fail), F(AudioFileClose, audio_fail), F(AudioFileGetProperty, audio_fail),
-    F(AudioFileGetPropertyInfo, audio_fail), F(AudioFileReadPackets, audio_fail),
+    // AudioFile API: parses WAV assets into PCM for OpenAL SoundEngine
+    F(AudioFileOpenURL, my_AudioFileOpenURL), F(AudioFileClose, my_AudioFileClose),
+    F(AudioFileGetProperty, my_AudioFileGetProperty), F(AudioFileGetPropertyInfo, my_AudioFileGetPropertyInfo),
+    F(AudioFileReadBytes, my_AudioFileReadBytes), F(AudioFileReadPackets, audio_fail),
+    // AudioQueue stubs: BGM is handled via sound_bgm_* OpenAL hooks
     F(AudioQueueNewOutput, audio_fail), F(AudioQueueAllocateBuffer, audio_fail), F(AudioQueueEnqueueBuffer, audio_fail),
     F(AudioQueueStart, audio_fail), F(AudioQueuePrime, audio_fail), F(AudioQueueStop, audio_fail),
     F(AudioQueueDispose, audio_fail), F(AudioQueueSetParameter, audio_fail), F(AudioQueueSetProperty, audio_fail),
