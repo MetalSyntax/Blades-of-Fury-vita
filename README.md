@@ -1,97 +1,151 @@
-# iOS Mach-O Loader Boilerplate for PS Vita
+# Blades of Fury — PS Vita Port
 
-A reusable boilerplate and scaffolding framework for porting classic 32-bit iOS games (ARMv6 / ARMv7, 32-bit Mach-O `MH_EXECUTE`) to the PlayStation Vita.
-This is the iOS counterpart to [`soloader-boilerplate`](https://github.com/Rinnegatamante/soloader-boilerplate) (Android), based on the proven, battle-tested architecture developed in [`Inotia2-vita`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/Inotia2-vita).
+<p align="center">
+  <img src="6450819-blades-of-fury-iphone-front-cover.webp" alt="Blades of Fury Cover" width="320"/>
+</p>
 
----
+<p align="center">
+  <b>A native PlayStation Vita port of Gameloft's classic 3D weapon-based fighting game <i>Blades of Fury</i> (iOS 1.1.3).</b>
+</p>
 
-## Loader Architecture
-
-| Component | File(s) | Role & Emulation Functionality |
-|---|---|---|
-| **Mach-O Loader** | [`source/macho.c`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/source/macho.c), [`source/macho.h`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/source/macho.h) | Custom static dyld and 32-bit Mach-O executable loader with fixed base address (`MACHO_SLIDE = 0x98000000`). Applies data segment rebases, resolves import tables (`__la_symbol_ptr`, `__nl_symbol_ptr`), and binds stubs for unhandled symbols. |
-| **Assembly Glue & Trampolines** | [`source/asm.S`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/source/asm.S) | `call_guest` and `call_guest6` (preserve `r9`). `ml_align_call` (bridges iOS 4-byte stack alignment to VitaSDK/newlib 8-byte AAPCS). `ml_unimpl_entry` (auto-logging unimplemented stub). |
-| **Darwin / POSIX Subsystem** | [`source/darwin.c`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/source/darwin.c), [`source/darwin.h`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/source/darwin.h) | Darwin libc, libgcc, pthreads, and sockets emulation. Thread-safe POSIX wrapper with `SceUID` tracking (prevents fatal crashes on `pthread_detach`). High-precision `mach_absolute_time()` mapped to `sceKernelGetProcessTimeWide()`. |
-| **Variadic Formatter** | [`source/darwin_printf.c`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/source/darwin_printf.c), [`source/darwin_printf.h`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/source/darwin_printf.h) | Printf engine tailored to Darwin's ARM ABI: reads 64-bit doubles and integers from unaligned word boundaries, with native support for Objective-C's `%@` specifier (`NSString*`). |
-| **Mini-runtime ObjC / UIKit** | [`source/objc.c`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/source/objc.c), [`source/objc.h`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/source/objc.h) | Fast selector-based dispatching with `objc_msgSend` and `objc_msgSend_stret`. Emulates `NSString`, `UIFont` (rendered using a FreeType glyph atlas), `NSBundle` (`resourcePath`), `NSCalendar`, `UIDevice`, and on-screen keyboard via `sceImeDialog`. |
-| **OpenGL ES Graphics Backend** | [`source/gles.c`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/source/gles.c), [`source/gles.h`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/source/gles.h), [`source/vitagl_no_splash.c`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/source/vitagl_no_splash.c) | GLES1 and GLES2 pipeline powered by vendored `vitaGL` compiled with `SOFTFP_ABI=1`. Virtual FBO supports display orientation rotation and aspect-ratio scaling (portrait/landscape to Vita's native 960x544). Converts `GL_FIXED` vertex arrays and disables blocking splashscreens. |
-| **CgBI PNG Decoder** | [`source/cgbi.c`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/source/cgbi.c), [`source/cgbi.h`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/source/cgbi.h) | Native decompressor and BGR-to-RGB byte-swap converter for Apple's proprietary CgBI-optimized PNG assets, allowing intact IPA bundles to load directly without offline conversion. |
-| **CoreAudio Backend** | [`source/coreaudio.c`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/source/coreaudio.c) | Emulates AudioUnit RemoteIO and AudioSession on a dedicated high-priority `sceAudioOut` audio thread. |
-| **Input Subsystem** | [`source/input.c`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/source/input.c), [`source/input.h`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/source/input.h) | Maps PS Vita physical buttons and front capacitive multitouch screen to iOS touch events (`UITouchPhaseBegan`, `Moved`, `Ended`). |
-| **Logging Subsystem** | [`source/log.c`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/source/log.c), [`source/log.h`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/source/log.h) | Rotating on-device file logger (`ux0:data/<slug>/logs/log_001.log` .. `log_999.log`) and live stdout streaming. |
-| **Game Patches & Glue** | [`source/patch.c`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/source/patch.c), [`source/patch.h`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/source/patch.h) | Dedicated hooks for game-specific memory patches, symbol redirection, and custom bypasses. |
+<p align="center">
+  <img src="1.webp" alt="Blades of Fury Vita Gameplay 1" width="400"/>
+  &nbsp;&nbsp;
+  <img src="1034749.webp" alt="Blades of Fury Vita Gameplay 2" width="400"/>
+</p>
 
 ---
 
-## Critical iOS on PS Vita ABI Rules
+## Overview
 
-1. **`r9` as a Scratch Register**:
-   - In Apple's Darwin ARMv6/v7 ABI, `r9` is an available scratch register (not callee-saved).
-   - In the standard ARM AAPCS (used by VitaSDK/newlib), `r9` is callee-saved or platform-reserved.
-   - **Rule**: The entire loader codebase MUST be compiled with `-ffixed-r9`, and any execution transfer into the game binary must transition through `call_guest` / `call_guest6` in [`source/asm.S`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/source/asm.S) to prevent register corruption.
-2. **SoftFP Calling Convention**:
-   - iOS 32-bit binaries pass single and double precision floats in integer registers (`r0..r3`).
-   - `vitaGL` MUST be compiled with `SOFTFP_ABI=1` so that internal calls and GXM commands (`sceGxmSetViewport`, etc.) maintain proper argument alignment.
-3. **4-Byte Stack Alignment**:
-   - 32-bit iOS code only enforces 4-byte stack alignment.
-   - VitaSDK newlib functions (especially `printf`, `malloc`, and math routines) expect an 8-byte aligned stack (AAPCS).
-   - All C callbacks invoked by the game binary enter through `ml_align_call` to re-align `sp` to an 8-byte boundary before calling newlib or vitaGL.
-4. **FairPlay DRM Decryption**:
-   - The Mach-O executable in the IPA must be completely decrypted (`cryptid = 0`).
-   - Binaries dumped directly from an encrypted app package will crash immediately with a Data Abort when loaded.
+*Blades of Fury* is a high-octane 3D weapon-based fighting game developed and published by Gameloft in 2009 for iOS, heavily inspired by arcade classics such as *Soulcalibur*. It features 10 unique warriors, diverse combat arenas, armor destruction mechanics, devastating magic attacks, and multiple game modes (Story, Arcade, Survival, and Practice).
+
+This port directly loads and executes the original ARMv6 32-bit Mach-O executable on the PlayStation Vita's ARM Cortex-A9 processor, bridging iOS system frameworks (UIKit, CoreFoundation, OpenGLES 1.1, OpenAL) through custom translation layers.
 
 ---
 
-## Included Tools (`tools/`)
+## Features
 
-- [`tools/macho_prep.py`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/tools/macho_prep.py): Analyzes thin or fat Mach-O executables, verifies `cryptid == 0`, scans `__DATA` pointers against symbols, and generates `rebase.bin`.
-- [`tools/annotate.py`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/tools/annotate.py): Disassembles functions, resolving PIC calls, ObjC selectors, classes, and literal strings.
-- [`tools/cgbi_check.py`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/tools/cgbi_check.py): Verifies and extracts Apple CgBI-compressed PNG files.
-- [`tools/printf_check.py`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/tools/printf_check.py): Validates variadic string format specifiers and alignment.
-- [`tools/stage_data.sh`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/tools/stage_data.sh): Packages and organizes game assets into `ux0_data/<slug>/`.
-- [`tools/deploy_data.py`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/tools/deploy_data.py): Incremental FTP deployment directly to the PS Vita (VitaShell).
-
----
-
-## LiveArea Assets (`extras/livearea/`)
-
-The repository stores all LiveArea presentation assets in [`extras/livearea/`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/ios-loader-boilerplate/extras/livearea):
-- `icon0.png`: 128×128 application icon (official iOS wordmark on light gray `#E5E5EA`).
-- `pic0.png`: 960×544 splash screen ("iPhone OS" in Helvetica Neue typography on charcoal `#202020`).
-- `startup.png`: 280×158 LiveArea startup gate button.
-- `bg0.png`: 840×500 LiveArea background (faceted geometric low-poly mesh in Apple slate gray).
-- `template.xml`: Vita LiveArea layout definition.
-
-These files are automatically mapped directly into `sce_sys/` inside the output `.vpk` by `vita_create_vpk` in `CMakeLists.txt`.
+- **Full Native Execution:** Runs the original decrypted iOS executable (`BladesOfFury`) natively without CPU emulation.
+- **Widescreen 960x544 Display:** Scaled to fill the entire PlayStation Vita OLED/LCD screen (no black bars or letterboxing).
+- **Physical Controls:** Fully mapped D-Pad, Left Analog Stick, Face Buttons ($\square$, $\Delta$, $\bigcirc$, $\times$), and Shoulder Triggers (L1/R1).
+- **Capacitive Touchscreen Support:** Front touchscreen remains active for seamless menu navigation and character selection.
+- **VFP Vector Mode Emulation:** Transparently patches legacy ARMv6 VFPv2 vector mode (`FPSCR.LEN = 3`) math routines with standard scalar math to prevent crashes on Cortex-A9.
+- **Complete Audio Support (SFX + BGM):**
+  - **Sound Effects & Voices:** Native RIFF/WAVE parsing and spatial playback through **OpenAL** (`sfx_*.wav`, `vfx_*.wav`).
+  - **Background Music:** Dedicated OpenAL stream engine playing high-fidelity 32 kHz stereo tracks across all menus and arenas.
+- **On-the-fly CgBI PNG Decoding:** Decodes Apple's proprietary CgBI-compressed PNG assets directly at runtime without requiring manual PC preprocessing.
+- **Diagnostic Logging System:** Automatic rotating log manager saving runtime logs to `ux0:data/bladesoffury/logs/log_XXX.log`.
 
 ---
 
-## Target Console Directory Layout (`ux0:data/<slug>/`)
+## Controls
 
-```
-ux0:data/<slug>/
-  <AppName>.app/   Extracted iOS game bundle (.png, .caf, .fsb, plist assets)
-  rebase.bin       Rebase relocation table generated by tools/macho_prep.py
-  saves/           Game save directory (mapped to iOS Documents/ folder)
-  logs/            Runtime execution logs (log_001.log .. log_999.log)
+| PS Vita Button | Action / In-Game Function | Virtual HUD Target |
+| :--- | :--- | :--- |
+| **Left Analog Stick** | Move / 8-Way Virtual Joystick | Analog Joystick `(80, 250)` |
+| **D-Pad (Cruceta)** | 8-Way Movement | Virtual D-Pad `(80, 250)` |
+| **$\square$ (Square)** | Horizontal Slash (Attack A) | `(361, 255)` |
+| **$\Delta$ (Triangle)** | Vertical Slash (Attack B) | `(410, 206)` |
+| **$\bigcirc$ (Circle) / R1** | Magic / Kick / Special (Attack C) | `(430, 157)` |
+| **$\times$ (Cross) / L1** | Guard / Defense (Attack D) | `(430, 270)` |
+| **START** | Pause Game / In-Game Menu | `(455, 25)` |
+| **Front Touchscreen** | Menu Navigation, Character Selection, Dialogs | Direct 1:1 screen mapping |
+
+---
+
+## Prerequisites & Required Plugins
+
+Ensure your PS Vita is running Henkaku / Enso with the following plugins installed in your `ur0:tai/config.txt`:
+
+1. **kubridge:** Required for user-memory dynamic mapping (`kuKernelAllocMemBlock`).
+2. **fd_fix:** Prevents file descriptor crashes when opening multiple archives or assets simultaneously.
+3. **libshacccg.suprx:** Required by `vitaGL` for runtime shader compilation. If you don't have it installed, use [ShaRKBR33D](https://github.com/OsirizX/ShaRKBR33D) to extract it easily.
+
+Example `ur0:tai/config.txt`:
+```ini
+*KERNEL
+ur0:tai/kubridge.skprx
+ur0:tai/fd_fix.skprx
 ```
 
 ---
 
-## Quick Start & Port Initialization
+## Installation Guide
 
-Using `psvita-toolkit`:
+### Step 1: Install the VPK
+Download and install [`bladesoffury.vpk`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/Blades-of-Fury-vita/build/bladesoffury.vpk) using VitaShell.
+
+### Step 2: Prepare Game Data
+You must provide your own legitimately acquired copy of *Blades of Fury* for iOS (v1.1.3 `.ipa`):
+
+1. Rename `Blades of Fury_v.1.1.3.ipa` to `.zip` and extract its contents.
+2. Inside `Payload/`, locate the `BladesOfFury.app` folder.
+3. Ensure the main binary `BladesOfFury.app/BladesOfFury` is decrypted (`cryptid = 0`).
+4. Generate the relocation table `rebase.bin` and convert the music tracks:
+   ```bash
+   # From the port repository root:
+   python3 tools/macho_prep.py path/to/BladesOfFury.app/BladesOfFury ux0_data/bladesoffury/rebase.bin
+   tools/stage_data.sh path/to/BladesOfFury.app
+   ```
+5. Transfer the contents of `ux0_data/bladesoffury/` to your PS Vita at `ux0:data/bladesoffury/` via FTP or USB:
+
+```
+ux0:data/bladesoffury/
+  ├── BladesOfFury.app/
+  │     ├── BladesOfFury      (Decrypted 32-bit Mach-O executable)
+  │     ├── Info.plist
+  │     ├── *.bar, *.epk      (Game data archives)
+  │     ├── sfx_*.wav         (Sound effects and voices)
+  │     ├── m_*.wav           (Converted BGM tracks)
+  │     └── ...
+  ├── rebase.bin              (Generated relocation table)
+  ├── saves/                  (Auto-created save data directory)
+  └── logs/                   (Auto-created diagnostic logs)
+```
+
+6. Launch **Blades of Fury** from your PS Vita LiveArea!
+
+---
+
+## Building from Source
+
+### Requirements
+- [VitaSDK](https://vitasdk.org/) installed and added to your `$PATH`.
+- CMake (>= 3.16).
+- Python 3.8+.
+- OpenAL-soft for VitaSDK (`vita-makepkg` / `vdpm`).
+
+### Compilation
 ```bash
-# Initialize a new iOS port directly from an IPA file:
-psvita-toolkit init-port --ipa /path/to/game.ipa
+# Clone the repository:
+git clone https://github.com/username/Blades-of-Fury-vita.git
+cd Blades-of-Fury-vita
 
-# Validate LiveArea assets:
-psvita-toolkit livearea validate
-
-# Build vitaGL with SoftFP ABI support:
-cd vendor/vitaGL && ./build_vitagl.sh
-
-# Configure and compile the VPK:
+# Configure and compile:
 cmake -B build
-cmake --build build
+cmake --build build --parallel 8
 ```
+
+This will produce:
+- `build/eboot.bin`
+- `build/bladesoffury.vpk`
+
+---
+
+## Technical Architecture & Notes
+
+- **ABI Compatibility:** Compiled with `-ffixed-r9` to protect Apple's scratch register convention against Vita's AAPCS expectations. All guest execution jumps are dispatched via `call_guest` / `call_guest6` in [`source/asm.S`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/Blades-of-Fury-vita/source/asm.S).
+- **Stack Re-alignment:** 32-bit iOS uses 4-byte stack alignment, whereas VitaSDK newlib expects 8 bytes. `ml_align_call` automatically re-aligns `sp` across all callback boundaries.
+- **Custom Darwin Memory Relocation:** Because early iOS binaries are non-PIE and lack standard dynamic relocations, `tools/macho_prep.py` scans code literals, jump tables, Objective-C selectors, and class references to generate a compact `rebase.bin` table applied at runtime.
+- **Audio Pipeline:** Standard CoreAudio calls (`AudioFileOpenURL`, `AudioFileReadBytes`, `AudioFileGetProperty`) are intercepted in [`source/coreaudio.c`](file:///Volumes/TOSHIBA%20EXT/PSVITA%20Develop/Blades-of-Fury-vita/source/coreaudio.c) and routed directly to OpenAL PCM buffers.
+
+---
+
+## Credits & Acknowledgments
+
+- **Gameloft:** For developing and publishing the original *Blades of Fury*.
+- **Rinnegatamante:** For [`vitaGL`](https://github.com/Rinnegatamante/vitaGL) and foundational work in the PS Vita porting scene.
+- **TheFloW:** For [`kubridge`](https://github.com/TheOfficialFloW/kubridge).
+- **VitaSDK Team:** For the comprehensive open-source toolchain.
+- **Wonder Diaz:** PS Vita loader port, translation layers, controls, and optimization.
