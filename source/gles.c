@@ -12,7 +12,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <vitaGL.h>
+#include <psp2/kernel/processmgr.h>
 
+#include "coreaudio.h"
 #include "gles.h"
 #include "hle.h"
 #include "objc.h"
@@ -213,6 +215,8 @@ static void g_glClientActiveTexture(GLenum unit) {
 static uint32_t gles_draw_calls;
 static int wide_begin(void);
 static void wide_end(int on);
+static int const_begin(GLfloat *saved);
+static void const_end(int r, const GLfloat *saved);
 
 uint32_t gles_get_draw_calls(void) {
     return gles_draw_calls;
@@ -222,9 +226,12 @@ static void g_glDrawArrays(GLenum mode, GLint first, GLsizei count) {
     gles_draw_calls++;
     if (any_convert())
         prepare_draw(first + count);
+    GLfloat col[4];
+    int c = const_begin(col);
     int w = wide_begin();
     glDrawArrays(mode, first, count);
     wide_end(w);
+    const_end(c, col);
 }
 
 static void g_glGetPointerv(GLenum pname, void **out) {
@@ -247,10 +254,25 @@ static void g_glColor4x(GLfixed r, GLfixed g, GLfixed b, GLfixed a) {
     glColor4x(r, g, b, a);
 }
 
+// Unit-0 combiner state for const_begin (see "constant-color combiner").
+static GLuint server_unit;
+static GLint env_mode0 = GL_MODULATE, src0_rgb0 = GL_TEXTURE;
+static GLfloat env_color0[4];
+
 static void g_glTexEnvi(GLenum target, GLenum pname, GLint v) {
     if (pname == GL_TEXTURE_ENV_MODE)
         env_mode = v;
+    if (server_unit == 0 && pname == GL_TEXTURE_ENV_MODE)
+        env_mode0 = v;
+    if (server_unit == 0 && pname == GL_SRC0_RGB)
+        src0_rgb0 = v;
     glTexEnvi(target, pname, v);
+}
+
+static void g_glTexEnvf(GLenum target, GLenum pname, GLfloat v) {
+    if (pname == GL_TEXTURE_ENV_MODE || pname == GL_SRC0_RGB)
+        return g_glTexEnvi(target, pname, (GLint)v);
+    glTexEnvf(target, pname, v);
 }
 
 static void g_glTexEnvxv(GLenum target, GLenum pname, const GLfixed *v) {
@@ -403,6 +425,87 @@ static void wide_end(int on) {
     glPopMatrix();
     glMatrixMode(mode);
 }
+// ---------------------------------------------------------------- constant-color combiner
+
+// CMCMaterialRenderer_CONST_COLOR (the fake character shadows) disables every texture unit and outputs
+// GL_TEXTURE_ENV_COLOR through GL_COMBINE / GL_CONSTANT on unit 0. The iOS driver applies that combiner
+// untextured; vitaGL skips combiners when no texture is enabled, so the shadow came out in vertex color
+// (white). Emulated by drawing with the constant as the flat, unlit primary color.
+static void g_glActiveTexture(GLenum unit) {
+    server_unit = unit - GL_TEXTURE0;
+    glActiveTexture(unit);
+}
+static void g_glTexEnvfv(GLenum target, GLenum pname, const GLfloat *v) {
+    if (pname == GL_TEXTURE_ENV_COLOR && server_unit == 0)
+        memcpy(env_color0, v, sizeof(env_color0));
+    glTexEnvfv(target, pname, (GLfloat *)v);
+}
+
+static int const_begin(GLfloat *saved) {
+    if (env_mode0 != GL_COMBINE || src0_rgb0 != GL_CONSTANT)
+        return 0;
+    // The combiner replaces RGB and alpha with the constant, so any texture is irrelevant. disableTextures
+    // may leave GL_TEXTURE_2D on with texture 0 bound: switch texturing off on both units for the draw.
+    int r = 1 | (glIsEnabled(GL_LIGHTING) ? 2 : 0) | (enabled & 1u << A_COL ? 4 : 0);
+    for (int u = 0; u < 2; u++) {
+        glActiveTexture(GL_TEXTURE0 + u);
+        if (glIsEnabled(GL_TEXTURE_2D)) {
+            glDisable(GL_TEXTURE_2D);
+            r |= 8 << u;
+        }
+    }
+    glActiveTexture(GL_TEXTURE0 + server_unit);
+    if (r & 2)
+        glDisable(GL_LIGHTING);
+    if (r & 4)
+        glDisableClientState(GL_COLOR_ARRAY);
+    glGetFloatv(GL_CURRENT_COLOR, saved);
+    glColor4f(env_color0[0], env_color0[1], env_color0[2], env_color0[3]);
+    static int logged;
+    if (!logged++)
+        l_info("CONST_COLOR draw: rgba %d %d %d %d /255, state 0x%X", (int)(env_color0[0] * 255),
+               (int)(env_color0[1] * 255), (int)(env_color0[2] * 255), (int)(env_color0[3] * 255), r);
+    return r;
+}
+static void const_end(int r, const GLfloat *saved) {
+    if (!r)
+        return;
+    glColor4f(saved[0], saved[1], saved[2], saved[3]);
+    if (r & 2)
+        glEnable(GL_LIGHTING);
+    if (r & 4)
+        glEnableClientState(GL_COLOR_ARRAY);
+    for (int u = 0; u < 2; u++)
+        if (r & 8 << u) {
+            glActiveTexture(GL_TEXTURE0 + u);
+            glEnable(GL_TEXTURE_2D);
+        }
+    glActiveTexture(GL_TEXTURE0 + server_unit);
+}
+
+// Hitch profiler: frames over 50 ms are logged with the time vglSwapBuffers took (GPU/vsync) vs. the
+// rest (game update + draw submission); every 10 s a summary (frames, worst frame, draw calls/frame).
+static void frame_stats(SceUInt64 swap_start, SceUInt64 now) {
+    static SceUInt64 last, window_start;
+    static uint32_t frames, worst, hitches, calls_start;
+    if (last) {
+        uint32_t dt = (uint32_t)(now - last), swap = (uint32_t)(now - swap_start);
+        frames++;
+        if (dt > worst)
+            worst = dt;
+        if (dt > 50000 && hitches++ < 20)
+            l_info("hitch: frame %u ms (swap %u ms, game %u ms, %u draws)", dt / 1000, swap / 1000,
+                   (dt - swap) / 1000, gles_draw_calls - calls_start);
+    } else
+        window_start = now;
+    if (now - window_start >= 10000000) {
+        l_info("perf: %u fps avg, worst %u ms, %u hitches>50ms", frames / 10, worst / 1000, hitches);
+        window_start = now, frames = worst = hitches = 0;
+    }
+    calls_start = gles_draw_calls;
+    last = now;
+}
+
 static void g_glGetRenderbufferParameterivOES(GLenum target, GLenum pname, GLint *v) {
     if (bound_rb && bound_rb == drawable_rb)
         *v = pname == GL_RENDERBUFFER_WIDTH_OES ? FB_W : pname == GL_RENDERBUFFER_HEIGHT_OES ? FB_H : 0;
@@ -435,9 +538,12 @@ static void g_glDrawElements(GLenum mode, GLsizei count, GLenum type, const void
         }
         prepare_draw(n);
     }
+    GLfloat col[4];
+    int c = const_begin(col);
     int w = wide_begin();
     glDrawElements(mode, count, type, idx);
     wide_end(w);
+    const_end(c, col);
 }
 
 static void g_glLightf(GLenum light, GLenum pname, GLfloat v) { glLightfv(light, pname, &v); }
@@ -468,7 +574,17 @@ void gles_init(void) {
 // Every fixed-function state that could alter the blit (lighting, fog, culling, a second texture
 // unit, the texture matrix, write masks...) is saved, neutralized and restored: the game leaves
 // them enabled across frames (in-engine cutscenes use fog/lighting).
+static GLuint movie_tex; // != 0: gles_present shows this landscape texture instead of the game FBO
+static int movie_w, movie_h;
+
+void gles_present_movie(unsigned int tex, int w, int h) {
+    movie_tex = tex, movie_w = w, movie_h = h;
+    gles_present(0);
+    movie_tex = 0;
+}
+
 void gles_present(int rotate180) {
+    sound_bgm_poll();
     static const GLenum caps[] = {GL_BLEND,      GL_ALPHA_TEST, GL_SCISSOR_TEST,   GL_DEPTH_TEST,
                                   GL_CULL_FACE,  GL_LIGHTING,   GL_FOG,            GL_STENCIL_TEST,
                                   GL_CLIP_PLANE0, GL_TEXTURE_2D}; // vitaGL can't query GL_COLOR_MATERIAL
@@ -531,9 +647,19 @@ void gles_present(int rotate180) {
     const float xy[] = {DST_X, 0, DST_X + DST_W, 0, DST_X, SCR_H, DST_X + DST_W, SCR_H};
     glVertexPointer(2, GL_FLOAT, 0, xy);
     glTexCoordPointer(2, GL_FLOAT, 0, rotate180 ? uv1 : uv3);
+    static const float uvm[] = {0, 0, 1, 0, 0, 1, 1, 1};
+    const float mh = (float)SCR_W * movie_h / movie_w, my = (SCR_H - mh) / 2;
+    const float xym[] = {0, my, SCR_W, my, 0, my + mh, SCR_W, my + mh};
+    if (movie_tex) {
+        glBindTexture(GL_TEXTURE_2D, movie_tex);
+        glVertexPointer(2, GL_FLOAT, 0, xym);
+        glTexCoordPointer(2, GL_FLOAT, 0, uvm);
+    }
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     patch_overlay(); // loader OSD on the 960x544 screen (scissor + clear only)
+    SceUInt64 t0 = sceKernelGetProcessTimeWide();
     vglSwapBuffers(ime_active()); // GL_TRUE while system dialog is active
+    frame_stats(t0, sceKernelGetProcessTimeWide());
 
     // Restore guest OpenGL state.
     glPopMatrix();
@@ -576,7 +702,7 @@ void gles_present(int rotate180) {
 #define D(name) {"_" #name, (uintptr_t)(name)}
 
 const import_entry gles_imports[] = {
-    D(glActiveTexture), D(glBindTexture), D(glBlendFunc), F(glClear, g_glClear), F(glCopyTexImage2D, g_glCopyTexImage2D),
+    F(glActiveTexture, g_glActiveTexture), D(glBindTexture), D(glBlendFunc), F(glClear, g_glClear), F(glCopyTexImage2D, g_glCopyTexImage2D),
     F(glCopyTexSubImage2D, g_glCopyTexSubImage2D), D(glDeleteTextures), D(glDepthMask), D(glDisable), F(glDisableClientState, g_glDisableClientState),
     D(glEnable), F(glEnableClientState, g_glEnableClientState), D(glGenTextures), D(glGetIntegerv), D(glIsEnabled),
     D(glLoadIdentity), D(glLoadMatrixx), D(glMatrixMode), D(glOrthox), D(glOrthof), D(glFrustumf), D(glFlush), D(glPopMatrix), D(glPushMatrix),
@@ -603,8 +729,8 @@ const import_entry gles_imports[] = {
     D(glGetFloatv), D(glGetString), D(glHint), D(glLightModelfv), D(glLightfv), D(glLineWidth),
     D(glLoadMatrixf), D(glMaterialf), D(glMaterialfv), D(glMultMatrixf), D(glNormal3f),
     F(glNormalPointer, g_glNormalPointer), D(glPixelStorei), D(glPointSize), D(glPolygonOffset), D(glReadPixels),
-    D(glRotatef), D(glScalef), D(glStencilFunc), D(glStencilMask), D(glStencilOp), D(glTexEnvf),
-    D(glTexEnvfv), D(glTexEnvx), D(glTexParameterf), D(glTranslatef), D(glGenBuffers),
+    D(glRotatef), D(glScalef), D(glStencilFunc), D(glStencilMask), D(glStencilOp), F(glTexEnvf, g_glTexEnvf),
+    F(glTexEnvfv, g_glTexEnvfv), F(glTexEnvx, g_glTexEnvi), D(glTexParameterf), D(glTranslatef), D(glGenBuffers),
     D(glDeleteBuffers), D(glBufferData), D(glBufferSubData), F(glBindBuffer, g_glBindBuffer),
     F(glDrawElements, g_glDrawElements), F(glLightf, g_glLightf), F(glPointParameterf, g_glNoop),
 };

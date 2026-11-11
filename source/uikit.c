@@ -436,14 +436,15 @@ HM(color_any) { return RET_ID(color_obj ? color_obj : (color_obj = objc_alloc((o
 
 // ---------------------------------------------------------------- MediaPlayer
 
-// Cinematics are skipped: preload and "playback finished" are reported right away.
-// ponytail: no video playback; upgrade to SceAvPlayer (H.264 .m4v plays natively) for cinematics.
+// Cinematics play blocking on the hardware decoder (movie.c) inside -play, then report finished.
+static char movie_path[256];
 HM(movie_init_url) {
-    l_info("MPMoviePlayerController: %s (skipped)", ns_cstr((id)a));
+    snprintf(movie_path, sizeof(movie_path), "%s", ns_cstr((id)a));
     defer_notification("MPMoviePlayerContentPreloadDidFinishNotification", self);
     return RET_ID(self);
 }
 HM(movie_play) {
+    movie_play_file(movie_path);
     defer_notification("MPMoviePlayerPlaybackDidFinishNotification", self);
     return 0;
 }

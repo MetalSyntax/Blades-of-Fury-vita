@@ -76,18 +76,20 @@ rsync -a --delete \
   --exclude 'CodeResources' \
   "$APP/" "$OUT/$APP_DIR_NAME/"
 
-# Convertir pistas de audio m4a a wav para reproducción directa con OpenAL
-if command -v ffmpeg >/dev/null 2>&1; then
-    echo "[*] Verificando pistas de música (.m4a -> .wav)..."
-    for m in "$OUT/$APP_DIR_NAME"/m_*.m4a; do
-        if [ -f "$m" ]; then
-            w="${m%.m4a}.wav"
-            if [ ! -f "$w" ]; then
-                ffmpeg -y -v error -i "$m" -ar 32000 -ac 2 "$w"
-            fi
-        fi
-    done
+# Convertir pistas de audio m4a a wav para reproducción directa con OpenAL.
+# El loader solo acepta PCM 16 bits; 32 kHz estéreo mantiene las pistas en RAM razonable.
+if ! command -v ffmpeg >/dev/null 2>&1; then
+    echo "[-] Error: ffmpeg no está instalado (necesario para convertir la música m_*.m4a -> .wav)."
+    echo "    macOS: brew install ffmpeg | Linux/WSL: sudo apt install ffmpeg"
+    exit 1
 fi
+echo "[*] Convirtiendo pistas de música (.m4a -> .wav, PCM 16 bits, 32000 Hz, estéreo)..."
+for m in "$OUT/$APP_DIR_NAME"/m_*.m4a; do
+    [ -f "$m" ] || continue
+    w="${m%.m4a}.wav"
+    [ -f "$w" ] && continue
+    ffmpeg -y -v error -i "$m" -c:a pcm_s16le -ar 32000 -ac 2 "$w"
+done
 
 # Generar rebase.bin y reporte de imports
 echo "[*] Analizando Mach-O y generando rebase.bin..."

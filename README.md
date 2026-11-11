@@ -88,6 +88,10 @@ You must provide your own legitimately acquired copy of *Blades of Fury* for iOS
    python3 tools/macho_prep.py path/to/BladesOfFury.app/BladesOfFury ux0_data/bladesoffury/rebase.bin
    tools/stage_data.sh path/to/BladesOfFury.app
    ```
+   `stage_data.sh` needs **FFmpeg** and stops with an error if it is missing. The music must be **16-bit PCM, 32000 Hz, stereo** WAV. If you convert the tracks another way, use exactly:
+   ```bash
+   ffmpeg -i m_track.m4a -c:a pcm_s16le -ar 32000 -ac 2 m_track.wav
+   ```
 5. Transfer the contents of `ux0_data/bladesoffury/` to your PS Vita at `ux0:data/bladesoffury/` via FTP or USB:
 
 ```
@@ -114,6 +118,7 @@ ux0:data/bladesoffury/
 - [VitaSDK](https://vitasdk.org/) installed and added to your `$PATH`.
 - CMake (>= 3.16).
 - Python 3.8+.
+- [FFmpeg](https://ffmpeg.org/) and `rsync` (used by `tools/stage_data.sh` to convert the music to WAV). On Windows, run the script from WSL.
 - OpenAL-soft for VitaSDK (`vita-makepkg` / `vdpm`).
 
 ### Compilation

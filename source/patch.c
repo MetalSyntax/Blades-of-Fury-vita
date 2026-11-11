@@ -54,6 +54,16 @@ static int hook_SoundEngine_SetBackgroundMusicVolume(float vol) {
     return sound_bgm_set_volume(vol);
 }
 
+// On-screen pad (CJoyStick: stick + attack buttons) drawn by CVisualKeyService::DrawVisualKeyRect.
+// Hidden by default (physical buttons drive it); L+R toggles it. Touch input keeps working either way.
+static int vkeys_visible;
+static void *joystick_draw; // CJoyStick::DrawMyself(IVideoDriver*)
+
+static void hook_DrawVisualKeyRect(void *self, void *driver) {
+    if (vkeys_visible)
+        call_guest(joystick_draw, *(uint32_t *)((uint8_t *)self + 0x8), (uint32_t)driver, 0, 0);
+}
+
 // VFPv2 vector mode hooks:
 // Gameloft compiled Matrix4Mul, Matrix4Vector3Mul, and Matrix4Vector3MulAndRot with FPSCR.LEN=3
 // (vector mode length 4), which is deprecated and causes an Undefined Instruction exception (0x30002)
@@ -119,6 +129,10 @@ void patch_init(void) {
     macho_hook("_SoundEngine_UnloadBackgroundMusicTrack", hook_SoundEngine_UnloadBackgroundMusicTrack);
     macho_hook("_SoundEngine_SetBackgroundMusicVolume", hook_SoundEngine_SetBackgroundMusicVolume);
 
+    joystick_draw = (void *)macho_sym("__ZN9CJoyStick10DrawMyselfEPN3irr5video12IVideoDriverE");
+    if (joystick_draw)
+        macho_hook("__ZN17CVisualKeyService17DrawVisualKeyRectEPN3irr5video12IVideoDriverE", hook_DrawVisualKeyRect);
+
     // VFP vector mode replacement hooks
     macho_hook("__Z10Matrix4MulPKfS0_Pf", hook_Matrix4Mul);
     macho_hook("__Z17Matrix4Vector3MulPKfS0_Pf", hook_Matrix4Vector3Mul);
@@ -142,6 +156,15 @@ static void add_synthetic_touch(int id, int gx, int gy) {
 }
 
 void patch_input(void) {
+    // L+R (edge) toggles the on-screen pad. Vita L/R arrive as L/RTRIGGER (L1/R1 are DS3-only).
+    static int lr_prev;
+    int lr = (pad.buttons & (SCE_CTRL_LTRIGGER | SCE_CTRL_RTRIGGER)) == (SCE_CTRL_LTRIGGER | SCE_CTRL_RTRIGGER);
+    if (lr && !lr_prev) {
+        vkeys_visible = !vkeys_visible;
+        l_info("On-screen pad %s", vkeys_visible ? "shown" : "hidden");
+    }
+    lr_prev = lr;
+
     // 1. Left stick / D-Pad -> Virtual D-Pad / Joystick at (80, 250)
     float stick_dx = 0.0f;
     float stick_dy = 0.0f;
@@ -196,9 +219,9 @@ void patch_input(void) {
         add_synthetic_touch(0x14, 430, 270);
     }
 
-    // Start: Pause button (top-right, 455, 25)
-    if (pad.buttons & SCE_CTRL_START) {
-        add_synthetic_touch(0x15, 455, 25);
+    // Start/Select: pause = the red orb at the top center of the HUD
+    if (pad.buttons & (SCE_CTRL_START | SCE_CTRL_SELECT)) {
+        add_synthetic_touch(0x15, 240, 18);
     }
 }
 

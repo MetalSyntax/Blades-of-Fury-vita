@@ -15,6 +15,10 @@ void gles_init(void);
  * @param rotate180 1 when the game renders for device orientation 1 (rotated 180 degrees vs 3).
  */
 void gles_present(int rotate180);
+/// Shows one movie frame (landscape texture, letterboxed) through the normal present path.
+void gles_present_movie(unsigned int tex, int w, int h);
+/// Plays a video file to completion (blocking; X/O/START skips). movie.c
+void movie_play_file(const char *path);
 
 /**
  * @brief Returns the total number of draw calls dispatched this session.

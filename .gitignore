@@ -50,3 +50,7 @@ __pycache__/
 *.swp
 .claude/
 cmake-build-*/
+
+# FFmpeg source + local build (downloaded, regenerable)
+vendor/ffmpeg-8.0/
+vendor/ffmpeg/

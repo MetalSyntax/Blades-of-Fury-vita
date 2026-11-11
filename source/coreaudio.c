@@ -382,8 +382,56 @@ static int my_AudioFileReadBytes(void *af_ptr, int useCache, int64_t startingByt
 
 static ALuint bgm_source = 0;
 static ALuint bgm_buffer = 0;
+static ALCcontext *bgm_ctx = NULL; // context that owns bgm_source
+static char bgm_path[256];         // track currently in bgm_buffer (kept after unload: rounds reload the same one)
 static float s_bgm_vol = 1.0f;
 static int s_bgm_loop = 1;
+
+// CAudioManager::PauseAll -> SoundEngine_Teardown destroys the OpenAL context and Init creates a new
+// one: bgm_source dies with it and the next round's BGM played on a dead id (silence).
+static void bgm_release(void) {
+    if (bgm_source) {
+        alSourceStop(bgm_source);
+        alSourcei(bgm_source, AL_BUFFER, 0);
+        alDeleteSources(1, &bgm_source);
+    }
+    if (bgm_buffer)
+        alDeleteBuffers(1, &bgm_buffer);
+    bgm_source = bgm_buffer = 0;
+    bgm_path[0] = 0;
+    bgm_ctx = NULL;
+}
+
+static void wrap_alcDestroyContext(ALCcontext *ctx) {
+    if (ctx && ctx == bgm_ctx) {
+        ALCcontext *prev = alcGetCurrentContext();
+        alcMakeContextCurrent(ctx);
+        bgm_release();
+        alcMakeContextCurrent(prev == ctx ? NULL : prev);
+        l_info("BGM: OpenAL context %p destroyed, BGM source released", ctx);
+    }
+    alcDestroyContext(ctx);
+}
+
+static SceUID ld_thread = -1;
+static volatile int ld_ready, ld_start; // ld_start: game called start while the track was still loading
+static char ld_wav[256], ld_alt[256];
+static wav_file_t ld_w;
+static void *ld_pcm;
+
+static int bgm_load_thread(SceSize args, void *argp) {
+    if (wav_open(ld_wav, &ld_w) < 0 && wav_open(ld_alt, &ld_w) < 0) {
+        l_warn("BGM: could not open '%s' (nor '%s')", ld_wav, ld_alt);
+    } else if ((ld_pcm = malloc(ld_w.data_size))) {
+        fseek(ld_w.fp, ld_w.data_offset, SEEK_SET);
+        fread(ld_pcm, 1, ld_w.data_size, ld_w.fp);
+    }
+    if (ld_w.fp)
+        fclose(ld_w.fp);
+    ld_w.fp = NULL;
+    ld_ready = 1;
+    return 0;
+}
 
 int sound_bgm_load(const char *path, int loop, int crossfade) {
     if (!path || !path[0])
@@ -401,71 +449,102 @@ int sound_bgm_load(const char *path, int loop, int crossfade) {
         strcpy(dot, ".wav");
     }
 
-    wav_file_t w;
-    const char *opened_path = wav_path;
-    if (wav_open(wav_path, &w) < 0) {
-        if (wav_open(rpath, &w) < 0) {
-            l_warn("BGM: could not open '%s' (nor '%s')", wav_path, rpath);
-            return -1;
-        }
-        opened_path = rpath;
+    if (bgm_ctx && bgm_ctx != alcGetCurrentContext()) { // context swapped without alcDestroyContext
+        l_warn("BGM: OpenAL context changed (%p -> %p), recreating source", bgm_ctx, alcGetCurrentContext());
+        bgm_source = bgm_buffer = 0;
+        bgm_path[0] = 0;
     }
-
-    void *pcm = malloc(w.data_size);
-    if (!pcm) {
-        fclose(w.fp);
-        return -1;
-    }
-
-    fseek(w.fp, w.data_offset, SEEK_SET);
-    fread(pcm, 1, w.data_size, w.fp);
-    fclose(w.fp);
-
-    ALenum fmt = AL_FORMAT_MONO16;
-    if (w.channels == 2 && w.bits_per_sample == 16)
-        fmt = AL_FORMAT_STEREO16;
-    else if (w.channels == 1 && w.bits_per_sample == 16)
-        fmt = AL_FORMAT_MONO16;
-    else if (w.channels == 2 && w.bits_per_sample == 8)
-        fmt = AL_FORMAT_STEREO8;
-    else if (w.channels == 1 && w.bits_per_sample == 8)
-        fmt = AL_FORMAT_MONO8;
-
-    if (!bgm_source) {
+    bgm_ctx = alcGetCurrentContext();
+    if (!bgm_source)
         alGenSources(1, &bgm_source);
-    } else {
-        alSourceStop(bgm_source);
-        alSourcei(bgm_source, AL_BUFFER, 0);
+    alSourceStop(bgm_source);
+
+    // Same track again (every round reloads the stage BGM): skip re-reading ~8 MB from the card.
+    if (bgm_buffer && !strcmp(bgm_path, wav_path)) {
+        alSourcei(bgm_source, AL_BUFFER, bgm_buffer);
+        alSourcei(bgm_source, AL_LOOPING, loop ? AL_TRUE : AL_FALSE);
+        alSourcef(bgm_source, AL_GAIN, s_bgm_vol);
+        l_info("BGM reused '%s' -> buffer %u", wav_path, bgm_buffer);
+        return 0;
     }
 
-    if (bgm_buffer) {
-        alDeleteBuffers(1, &bgm_buffer);
-        bgm_buffer = 0;
+    // Reading an 8-10 MB WAV from the card took ~3 s and froze the fight intro: read it on a thread,
+    // hand it to OpenAL from sound_bgm_poll() (main thread) and start then if start was requested.
+    if (ld_thread >= 0) { // a previous load still reading: wait (rare; keeps one PCM in flight)
+        sceKernelWaitThreadEnd(ld_thread, NULL, NULL);
+        sceKernelDeleteThread(ld_thread);
+        ld_thread = -1;
+        free(ld_pcm);
+        ld_pcm = NULL;
     }
-
-    alGenBuffers(1, &bgm_buffer);
-    alBufferData(bgm_buffer, fmt, pcm, w.data_size, w.sample_rate);
-    free(pcm);
-
-    alSourcei(bgm_source, AL_BUFFER, bgm_buffer);
-    alSourcei(bgm_source, AL_LOOPING, loop ? AL_TRUE : AL_FALSE);
-    alSourcef(bgm_source, AL_GAIN, s_bgm_vol);
-
-    l_info("BGM loaded '%s' (%u Hz, ch=%u, sz=%u B) -> buffer %u",
-           opened_path, w.sample_rate, w.channels, w.data_size, bgm_buffer);
+    alSourcei(bgm_source, AL_BUFFER, 0);
+    snprintf(ld_wav, sizeof(ld_wav), "%s", wav_path);
+    snprintf(ld_alt, sizeof(ld_alt), "%s", rpath);
+    ld_ready = 0;
+    ld_start = 0;
+    ld_thread = sceKernelCreateThread("bgm_load", bgm_load_thread, 0x10000100 + 20, 0x4000, 0, 0, NULL);
+    sceKernelStartThread(ld_thread, 0, NULL);
     return 0;
 }
 
+void sound_bgm_poll(void) {
+    if (ld_thread < 0 || !ld_ready)
+        return;
+    sceKernelWaitThreadEnd(ld_thread, NULL, NULL);
+    sceKernelDeleteThread(ld_thread);
+    ld_thread = -1;
+    if (!ld_pcm || !bgm_source || bgm_ctx != alcGetCurrentContext()) {
+        l_warn("BGM: async load of '%s' dropped (pcm=%p src=%u)", ld_wav, ld_pcm, bgm_source);
+        free(ld_pcm);
+        ld_pcm = NULL;
+        return;
+    }
+    wav_file_t *w = &ld_w;
+    ALenum fmt = AL_FORMAT_MONO16;
+    if (w->channels == 2 && w->bits_per_sample == 16)
+        fmt = AL_FORMAT_STEREO16;
+    else if (w->channels == 2 && w->bits_per_sample == 8)
+        fmt = AL_FORMAT_STEREO8;
+    else if (w->channels == 1 && w->bits_per_sample == 8)
+        fmt = AL_FORMAT_MONO8;
+
+    if (bgm_buffer)
+        alDeleteBuffers(1, &bgm_buffer);
+    alGenBuffers(1, &bgm_buffer);
+    alBufferData(bgm_buffer, fmt, ld_pcm, w->data_size, w->sample_rate);
+    free(ld_pcm);
+    ld_pcm = NULL;
+    snprintf(bgm_path, sizeof(bgm_path), "%s", ld_wav);
+
+    alSourcei(bgm_source, AL_BUFFER, bgm_buffer);
+    alSourcei(bgm_source, AL_LOOPING, s_bgm_loop ? AL_TRUE : AL_FALSE);
+    alSourcef(bgm_source, AL_GAIN, s_bgm_vol);
+    l_info("BGM loaded '%s' (%u Hz, ch=%u, sz=%u B) -> buffer %u", ld_wav, w->sample_rate, w->channels,
+           w->data_size, bgm_buffer);
+    if (ld_start)
+        sound_bgm_start(s_bgm_loop);
+}
+
 int sound_bgm_start(int loop) {
+    if (ld_thread >= 0) { // still reading: sound_bgm_poll starts it
+        ld_start = 1;
+        s_bgm_loop = loop;
+        return 0;
+    }
     if (bgm_source) {
         alSourcei(bgm_source, AL_LOOPING, loop ? AL_TRUE : AL_FALSE);
         alSourcePlay(bgm_source);
-        l_info("BGM started (loop=%d)", loop);
+        ALint st = 0;
+        alGetSourcei(bgm_source, AL_SOURCE_STATE, &st);
+        ALenum err = alGetError();
+        l_info("BGM started (loop=%d, src=%u, ctx=%p, state=0x%X, gain=%d%%, err=0x%X)", loop, bgm_source,
+               alcGetCurrentContext(), st, (int)(s_bgm_vol * 100), err);
     }
     return 0;
 }
 
 int sound_bgm_stop(int all) {
+    ld_start = 0;
     if (bgm_source) {
         alSourceStop(bgm_source);
         l_info("BGM stopped");
@@ -474,19 +553,19 @@ int sound_bgm_stop(int all) {
 }
 
 int sound_bgm_unload(void) {
+    ld_start = 0;
     if (bgm_source) {
         alSourceStop(bgm_source);
         alSourcei(bgm_source, AL_BUFFER, 0);
     }
-    if (bgm_buffer) {
-        alDeleteBuffers(1, &bgm_buffer);
-        bgm_buffer = 0;
-    }
+    // bgm_buffer is kept for reuse; the next load of a different track deletes it.
     l_info("BGM unloaded");
     return 0;
 }
 
 int sound_bgm_set_volume(float vol) {
+    if (vol != s_bgm_vol)
+        l_info("BGM volume %d%%", (int)(vol * 100));
     s_bgm_vol = vol;
     if (bgm_source) {
         alSourcef(bgm_source, AL_GAIN, vol);
@@ -545,7 +624,7 @@ const import_entry coreaudio_imports[] = {
     D(alBufferData), D(alDeleteBuffers), D(alDeleteSources), D(alDistanceModel), D(alGenBuffers), D(alGenSources),
     F(alGetError, wrap_alGetError), D(alGetSourcei), D(alListener3f), D(alListenerfv), D(alSource3f), D(alSourcePause), D(alSourcePlay),
     D(alSourceQueueBuffers), D(alSourceStop), D(alSourceUnqueueBuffers), D(alSourcef), D(alSourcefv),
-    D(alSourcei), D(alcCloseDevice), D(alcCreateContext), D(alcDestroyContext),
+    D(alSourcei), D(alcCloseDevice), D(alcCreateContext), F(alcDestroyContext, wrap_alcDestroyContext),
     D(alcMakeContextCurrent), D(alcOpenDevice), D(alcProcessContext), D(alcSuspendContext),
     F(alcGetProcAddress, al_GetProcAddress), F(alBufferDataStatic, al_BufferDataStatic),
 };

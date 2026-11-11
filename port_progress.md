@@ -214,3 +214,25 @@ El loader de Zombie Infection (mismo motor iOS 3 de Gameloft, ya en gameplay) se
 
 
 
+
+## 2026-11-10 — Corrida 16 (log_016.log + captura): BGM muda en round 2, sombras blancas, carga lenta/FPS, pad en pantalla
+
+- **BGM round 2:** el log muestra `BGM loaded m_stage_china.wav -> buffer 1` + `BGM started` y no suena. `CAudioManager::PauseAll` llama `SoundEngine_Teardown` (destruye el contexto OpenAL) y `UnpauseAll` → `Init` crea otro; `bgm_source` moría con el contexto viejo. Fix en `source/coreaudio.c`: wrapper `alcDestroyContext` libera fuente/búfer BGM antes de destruir, y `sound_bgm_load` recrea la fuente si cambió el contexto. Además se reutiliza el búfer cuando se recarga la misma pista (cada round recargaba ~8.5 MB de la SD, ~2.3 s). `BGM started` ahora loguea src/ctx/state/gain/err para confirmar en consola.
+- **Sombras blancas:** `CFakeShadowSceneNode` usa `CMCMaterialRenderer_CONST_COLOR`: `disableTextures(0)` + `GL_COMBINE` con `GL_SRC0_RGB/ALPHA = GL_CONSTANT` y `GL_TEXTURE_ENV_COLOR`. vitaGL no aplica combiners si no hay textura habilitada → color de vértice (blanco). Fix en `source/gles.c`: se rastrea el estado del combiner de la unidad 0 (`glActiveTexture`, `glTexEnvi/f/x/fv`) y en esos draws se dibuja con el color constante como color primario plano (sin lighting ni color array), restaurando después.
+- **Carga lenta / FPS:** cada `l_debug` hacía `fflush` a ux0 (~11 ms): 377 `stat` en el boot (~4-5 s) y `AudioSessionGetProperty('othr')` cada ~0.33 s in-game (hitch). `l_debug` ahora es no-op salvo compilar con `-DLOG_DEBUG`.
+- **Pad en pantalla:** `CVisualKeyService::DrawVisualKeyRect` (→ `CJoyStick::DrawMyself`) hookeado: oculto por defecto, L+R lo muestra/oculta. El touch sigue funcionando oculto. Nota: en Vita L/R llegan como `SCE_CTRL_L/RTRIGGER`; el mapeo existente `L1/R1` (Guard/Kick) es solo DS3/PSTV.
+- Build PC: OK.
+
+## 2026-11-10 — Corrida 17 (log_017.log): BGM OK; sombra sigue blanca, tirones, pausa
+
+- Fix BGM validado: el log muestra `OpenAL context ... destroyed, BGM source released` entre rounds y la música sigue.
+- Sombra: `const_begin` exigía `GL_TEXTURE_2D` deshabilitado, pero `disableTextures` puede dejarlo habilitado con textura 0. Ahora con combiner CONSTANT se apaga el texturing en las unidades 0/1 durante el draw (el combiner reemplaza RGB y alpha, la textura no importa). Loguea una vez `CONST_COLOR draw: rgba ...`.
+- Pausa: START/SELECT tocan el orbe rojo central del HUD (240,18) en vez de (455,25).
+- Tirones: no hay I/O de archivos en pelea (log_016). Agregado profiler en `gles_present`: `hitch:` (>50 ms, separa swap/GPU vs juego) y `perf:` cada 10 s.
+- Los `%f` en `l_info` salen corruptos (doble desalineado: `err=0x3FE00000`); los logs nuevos usan enteros.
+
+## Corrida 18
+- Sombras OK (CONST_COLOR rgba 37,36,33). Más fluido.
+- Congelamiento al iniciar pelea: `BGM loaded` de m_stage_cemetery.wav (10.7 MB) bloqueaba 2.9 s (round_start 1.2 s). Fix: lectura en hilo `bgm_load`, subida a OpenAL + start diferido en `sound_bgm_poll()` desde gles_present.
+- title.m4v (H.264 baseline 480x270 + AAC) ahora se reproduce con SceAvPlayer (source/movie.c), bloqueante dentro de -[MPMoviePlayerController play]; X/O/START salta.
+- Pendiente: hitch de 6.4 s en el arranque (logo Gameloft) es carga del juego, no el video; ráfaga de frames de 112 ms tras cargar BGM de pelea (¿intro de cámara?) sin causa aún.

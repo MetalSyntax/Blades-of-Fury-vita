@@ -46,6 +46,10 @@ void l_info(const char *fmt, ...) {
 }
 
 void l_debug(const char *fmt, ...) {
+#ifndef LOG_DEBUG // each line is an fflush to ux0 (~11 ms): hundreds of stat/fopen at boot, and in-game hitches
+    (void)fmt;
+    return;
+#endif
     va_list ap;
     va_start(ap, fmt);
     log_v("DEBUG", fmt, ap);

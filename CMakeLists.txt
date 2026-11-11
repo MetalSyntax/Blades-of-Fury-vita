@@ -62,6 +62,7 @@ add_executable(${CMAKE_PROJECT_NAME}
   source/darwin_printf.c
   source/objc.c
   source/gles.c
+  source/movie.c
   source/vitagl_no_splash.c
   source/coreaudio.c
   source/input.c
@@ -70,7 +71,12 @@ add_executable(${CMAKE_PROJECT_NAME}
   source/uikit.c
 )
 
+# Minimal FFmpeg (mov demuxer + h264/aac decoders) for title.m4v: vitasdk's ffmpeg has neither.
+set(FFMPEG_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/ffmpeg)
+set_source_files_properties(source/movie.c PROPERTIES INCLUDE_DIRECTORIES ${FFMPEG_DIR}/include)
 target_link_libraries(${CMAKE_PROJECT_NAME}
+  ${FFMPEG_DIR}/lib/libavformat.a ${FFMPEG_DIR}/lib/libavcodec.a
+  ${FFMPEG_DIR}/lib/libswresample.a ${FFMPEG_DIR}/lib/libavutil.a
   -Wl,--whole-archive pthread -Wl,--no-whole-archive
   openal
   vitaGL_vendored_lib
